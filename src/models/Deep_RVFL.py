@@ -1,5 +1,3 @@
-
-
 import numpy as np
 
 
@@ -21,9 +19,22 @@ class DeepRVFL:
         same_feature: A bool, the true means all the features have same meaning and boundary for example: images.
         task_type: A string of ML task type, 'classification' or 'regression'.
     """
-    def __init__(self, n_nodes, lam, w_random_vec_range, b_random_vec_range, activation, n_layer, same_feature=False,
-                 task_type='classification'):
-        assert task_type in ['classification', 'regression'], 'task_type should be "classification" or "regression".'
+
+    def __init__(
+        self,
+        n_nodes,
+        lam,
+        w_random_vec_range,
+        b_random_vec_range,
+        activation,
+        n_layer,
+        same_feature=False,
+        task_type="classification",
+    ):
+        assert task_type in [
+            "classification",
+            "regression",
+        ], 'task_type should be "classification" or "regression".'
         self.n_nodes = n_nodes
         self.lam = lam
         self.w_random_range = w_random_vec_range
@@ -48,9 +59,9 @@ class DeepRVFL:
         :return: No return
         """
 
-        assert len(data.shape) > 1, 'Data shape should be [n, dim].'
-        assert len(data) == len(label), 'Label number does not match data number.'
-        assert len(label.shape) == 1, 'Label should be 1-D array.'
+        assert len(data.shape) > 1, "Data shape should be [n, dim]."
+        assert len(data) == len(label), "Label number does not match data number."
+        assert len(label.shape) == 1, "Label should be 1-D array."
 
         n_sample = len(data)
         n_feature = len(data[0])
@@ -58,21 +69,33 @@ class DeepRVFL:
         h = data.copy()
         for i in range(self.n_layer):
             h = self.standardize(h, i)  # Normalization data
-            self.random_weights.append(self.get_random_vectors(len(h[0]), self.n_nodes, self.w_random_range))
-            self.random_bias.append(self.get_random_vectors(1, self.n_nodes, self.b_random_range))
-            h = self.activation_function(np.dot(h, self.random_weights[i]) + np.dot(np.ones([n_sample, 1]),
-                                                                                    self.random_bias[i]))
+            self.random_weights.append(
+                self.get_random_vectors(len(h[0]), self.n_nodes, self.w_random_range)
+            )
+            self.random_bias.append(
+                self.get_random_vectors(1, self.n_nodes, self.b_random_range)
+            )
+            h = self.activation_function(
+                np.dot(h, self.random_weights[i])
+                + np.dot(np.ones([n_sample, 1]), self.random_bias[i])
+            )
             d = np.concatenate([h, d], axis=1)
 
         d = np.concatenate([d, np.ones_like(d[:, 0:1])], axis=1)
-        if self.task_type == 'classification':
+        if self.task_type == "classification":
             y = self.one_hot(label, n_class)
         else:
             y = label
         if n_sample > (self.n_nodes * self.n_layer + n_feature):
-            self.beta = np.linalg.inv((self.lam * np.identity(d.shape[1]) + np.dot(d.T, d))).dot(d.T).dot(y)
+            self.beta = (
+                np.linalg.inv((self.lam * np.identity(d.shape[1]) + np.dot(d.T, d)))
+                .dot(d.T)
+                .dot(y)
+            )
         else:
-            self.beta = d.T.dot(np.linalg.inv(self.lam * np.identity(n_sample) + np.dot(d, d.T))).dot(y)
+            self.beta = d.T.dot(
+                np.linalg.inv(self.lam * np.identity(n_sample) + np.dot(d, d.T))
+            ).dot(y)
 
     def predict(self, data):
         """
@@ -86,16 +109,18 @@ class DeepRVFL:
         h = data.copy()
         for i in range(self.n_layer):
             h = self.standardize(h, i)
-            h = self.activation_function(np.dot(h, self.random_weights[i]) + np.dot(np.ones([n_sample, 1]),
-                                                                                    self.random_bias[i]))
+            h = self.activation_function(
+                np.dot(h, self.random_weights[i])
+                + np.dot(np.ones([n_sample, 1]), self.random_bias[i])
+            )
             d = np.concatenate([h, d], axis=1)
         d = np.concatenate([d, np.ones_like(d[:, 0:1])], axis=1)
         output = np.dot(d, self.beta)
-        if self.task_type == 'classification':
+        if self.task_type == "classification":
             proba = self.softmax(output)
             result = np.argmax(proba, axis=1)
             return result, proba
-        elif self.task_type == 'regression':
+        elif self.task_type == "regression":
             return output
 
     def eval(self, data, label):
@@ -107,31 +132,35 @@ class DeepRVFL:
                  When regression return MAE.
         """
 
-        assert len(data.shape) > 1, 'Data shape should be [n, dim].'
-        assert len(data) == len(label), 'Label number does not match data number.'
-        assert len(label.shape) == 1, 'Label should be 1-D array.'
+        assert len(data.shape) > 1, "Data shape should be [n, dim]."
+        assert len(data) == len(label), "Label number does not match data number."
+        assert len(label.shape) == 1, "Label should be 1-D array."
 
         n_sample = len(data)
         d = self.standardize(data, 0)
         h = data.copy()
         for i in range(self.n_layer):
             h = self.standardize(h, i)
-            h = self.activation_function(np.dot(h, self.random_weights[i]) + np.dot(np.ones([n_sample, 1]),
-                                                                                    self.random_bias[i]))
+            h = self.activation_function(
+                np.dot(h, self.random_weights[i])
+                + np.dot(np.ones([n_sample, 1]), self.random_bias[i])
+            )
             d = np.concatenate([h, d], axis=1)
         d = np.concatenate([d, np.ones_like(d[:, 0:1])], axis=1)
         output = np.dot(d, self.beta)
-        if self.task_type == 'classification':
+        if self.task_type == "classification":
             result = np.argmax(output, axis=1)
             acc = np.sum(np.equal(result, label)) / len(label)
             return acc
-        elif self.task_type == 'regression':
+        elif self.task_type == "regression":
             mae = np.mean(np.abs(output - label))
             return mae
 
     @staticmethod
     def get_random_vectors(m, n, scale_range):
-        x = (scale_range[1] - scale_range[0]) * np.random.random([m, n]) + scale_range[0]
+        x = (scale_range[1] - scale_range[0]) * np.random.random([m, n]) + scale_range[
+            0
+        ]
         return x
 
     @staticmethod
@@ -144,20 +173,24 @@ class DeepRVFL:
     def standardize(self, x, index):
         if self.same_feature is True:
             if self.data_std[index] is None:
-                self.data_std[index] = np.maximum(np.std(x), 1/np.sqrt(len(x)))
+                self.data_std[index] = np.maximum(np.std(x), 1 / np.sqrt(len(x)))
             if self.data_mean[index] is None:
                 self.data_mean[index] = np.mean(x)
             return (x - self.data_mean[index]) / self.data_std[index]
         else:
             if self.data_std[index] is None:
-                self.data_std[index] = np.maximum(np.std(x, axis=0), 1/np.sqrt(len(x)))
+                self.data_std[index] = np.maximum(
+                    np.std(x, axis=0), 1 / np.sqrt(len(x))
+                )
             if self.data_mean[index] is None:
                 self.data_mean[index] = np.mean(x, axis=0)
             return (x - self.data_mean[index]) / self.data_std[index]
 
     @staticmethod
     def softmax(x):
-        return np.exp(x) / np.repeat((np.sum(np.exp(x), axis=1))[:, np.newaxis], len(x[0]), axis=1)
+        return np.exp(x) / np.repeat(
+            (np.sum(np.exp(x), axis=1))[:, np.newaxis], len(x[0]), axis=1
+        )
 
 
 class Activation:
@@ -190,16 +223,14 @@ class Activation:
         return np.maximum(0, x)
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     import sklearn.datasets as sk_dataset
-
 
     def prepare_data_classify(proportion):
         dataset = sk_dataset.load_breast_cancer()
-        label = dataset['target']
-        data = dataset['data']
-        n_class = len(dataset['target_names'])
+        label = dataset["target"]
+        data = dataset["data"]
+        n_class = len(dataset["target_names"])
 
         shuffle_index = np.arange(len(label))
         np.random.shuffle(shuffle_index)
@@ -215,8 +246,8 @@ if __name__ == '__main__':
 
     def prepare_data_regression(proportion):
         dataset = sk_dataset.load_diabetes()
-        label = dataset['target']
-        data = dataset['data']
+        label = dataset["target"]
+        data = dataset["data"]
 
         shuffle_index = np.arange(len(label))
         np.random.shuffle(shuffle_index)
@@ -238,13 +269,20 @@ if __name__ == '__main__':
 
     # Classification
     train, val, num_class = prepare_data_classify(0.8)
-    deep_rvfl = DeepRVFL(n_nodes=num_nodes, lam=regular_para, w_random_vec_range=weight_random_range,
-                         b_random_vec_range=bias_random_range, activation='relu', n_layer=num_layer, same_feature=False,
-                         task_type='classification')
+    deep_rvfl = DeepRVFL(
+        n_nodes=num_nodes,
+        lam=regular_para,
+        w_random_vec_range=weight_random_range,
+        b_random_vec_range=bias_random_range,
+        activation="relu",
+        n_layer=num_layer,
+        same_feature=False,
+        task_type="classification",
+    )
     deep_rvfl.train(train[0], train[1], num_class)
     prediction, proba = deep_rvfl.predict(val[0])
     accuracy = deep_rvfl.eval(val[0], val[1])
-    print('Acc:', accuracy)
+    print("Acc:", accuracy)
 
     # Regression
     num_nodes = 10  # Number of enhancement nodes.
@@ -254,10 +292,17 @@ if __name__ == '__main__':
     num_layer = 2  # Number of hidden layers
 
     train, val = prepare_data_regression(0.8)
-    deep_rvfl = DeepRVFL(n_nodes=num_nodes, lam=regular_para, w_random_vec_range=weight_random_range,
-                         b_random_vec_range=bias_random_range, activation='relu', n_layer=num_layer, same_feature=False,
-                         task_type='regression')
+    deep_rvfl = DeepRVFL(
+        n_nodes=num_nodes,
+        lam=regular_para,
+        w_random_vec_range=weight_random_range,
+        b_random_vec_range=bias_random_range,
+        activation="relu",
+        n_layer=num_layer,
+        same_feature=False,
+        task_type="regression",
+    )
     deep_rvfl.train(train[0], train[1], 0)
     prediction = deep_rvfl.predict(val[0])
     mae = deep_rvfl.eval(val[0], val[1])
-    print('MAE:', mae)
+    print("MAE:", mae)
