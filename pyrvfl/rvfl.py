@@ -1,7 +1,7 @@
 import numpy as np
 from pyrvfl.utils.activation import Activation
 from pyrvfl.utils.utils import get_random_vectors, one_hot, softmax
-from pyrvfl.metrics.metrics import f1_score, roc_auc, acc_score
+from pyrvfl.metrics.metrics import f1_score, roc_auc, accuracy_score
 
 import numpy as np
 
@@ -109,7 +109,7 @@ class RVFL:
         result = np.argmax(proba, axis=1)
         return result, proba
 
-    def eval(self, data, label):
+    def eval(self, data, label, metrics=None):
         """
 
         :param data: Evaluation data.
@@ -122,7 +122,6 @@ class RVFL:
         assert len(data) == len(label), "Label number does not match data number."
         assert len(label.shape) == 1, "Label should be 1-D array."
 
-        # data = self.standardize(data)  # Normalization data
         h = self.activation_function(
             np.dot(data, self.random_weights) + self.random_bias
         )
@@ -134,12 +133,26 @@ class RVFL:
 
         proba = softmax(output)
 
-        f1, p, r = (
-            f1_score(label, result)["f1"],
-            f1_score(label, result)["precision"],
-            f1_score(label, result)["recall"],
-        )
-        roc = roc_auc(label, proba[:, 1])
-        acc = acc_score(label, result)
-        metric = {"f1_score": f1, "acc": acc, "roc": roc, "precision": p, "recall": r}
-        return metric
+        if metrics is None:
+            metrics = ["accuracy"]  # Métrica predeterminada
+
+        results = {}
+
+        if "accuracy" in metrics:
+            results["accuracy"] = accuracy_score(label, result)
+        if "f1_score" in metrics:
+            results["f1_score"] = f1_score(label, result)["f1_score"]
+        if "precision" in metrics:
+            results["precision"] = f1_score(label, result)["precision"]
+        if "recall" in metrics:
+            results["recall"] = f1_score(label, result)["recall"]
+        if "tpr" in metrics:
+            results["tpr"] = f1_score(label, result)["tpr"]
+        if "fnr" in metrics:
+            results["fnr"] = f1_score(label, result)["fnr"]
+        if "fpr" in metrics:
+            results["fpr"] = f1_score(label, result)["fpr"]
+        if "roc_auc" in metrics and len(np.unique(label)) == 2:
+            results["roc_auc"] = roc_auc(label, proba[:, 1])
+
+        return results

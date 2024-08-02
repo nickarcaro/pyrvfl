@@ -60,24 +60,4 @@ rvfl.fit(train[0], train[1])
 
 
 accuracy = rvfl.eval(val[0], val[1])
-print("Acc:", accuracy)
-
-# Regression
-num_nodes = 10  # Number of enhancement nodes.
-regular_para = 1  # Regularization parameter.
-weight_random_range = [-1, 1]  # Range of random weights.
-bias_random_range = [0, 1]  # Range of random weights.
-
-train, val = prepare_data_regression(0.8)
-rvfl = RVFL(
-    n_nodes=num_nodes,
-    lam=regular_para,
-    w_random_vec_range=weight_random_range,
-    b_random_vec_range=bias_random_range,
-    activation="relu",
-    task_type="regression",
-)
-rvfl.fit(train[0], train[1])
-prediction = rvfl.predict(val[0])
-mae = rvfl.eval(val[0], val[1])
-print("MAE:", mae)
+print(accuracy)

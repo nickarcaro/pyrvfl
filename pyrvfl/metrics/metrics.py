@@ -20,19 +20,19 @@ def f1_score(y_true, y_pred):
     )
 
     metrics: dict = {
-        "f1": f1,
+        "f1_score": f1,
         "precision": precision,
         "recall": recall,
-        "tp": tp,
-        "fp": fp,
-        "fn": fn,
+        "tpr": tp,
+        "fpr": fp,
+        "fnr": fn,
     }
 
     return metrics
 
 
 @staticmethod
-def acc_score(y_true, y_pred):
+def accuracy_score(y_true, y_pred):
     return np.sum(np.equal(y_pred, y_true)) / len(y_true)
 
 

@@ -37,30 +37,46 @@ param_grid = [
     for activations in [
         "relu",
         "sigmoid",
-        "sine",
-        "hardlim",
-        "tribas",
-        "radbas",
-        "sign",
-        "softmax",
     ]
     for num_neurons in [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
     for reg_val in [2**exp for exp in range(-6, 13, 2)]
 ]
 
-(train_data, train_labels), (val_data, val_labels), num_class = prepare_data_classify(
+(train_data, train_labels), (test_data, test_labels), num_class = prepare_data_classify(
     0.8
 )
 
 train_data = standardize_rvfl(train_data)
-val_data = standardize_rvfl(val_data)
+test_data = standardize_rvfl(test_data)
 
+param_grid = [
+    {
+        "n_nodes": num_neurons,
+        "lam": reg_val,
+        "w_random_vec_range": [-1, 1],
+        "b_random_vec_range": [0, 1],
+        "activation": "relu",
+        "task_type": "classification",
+    }
+    for num_neurons in [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+    for reg_val in [2**exp for exp in range(-6, 13, 2)]
+]
+
+
+# Conduct grid search and evaluate on test data with specified metrics
+metrics_to_evaluate = ["accuracy", "f1_score", "precision", "recall", "roc_auc"]
 result = gridSearch(
     RVFL,
     train_data,
     train_labels,
     param_grid,
+    test_data,
+    test_labels,
+    metrics=metrics_to_evaluate,
+    n_iterations=100,
     n_splits=5,
     test_size=0.2,
     random_state=42,
+    generate_plot=True,  # Set to True to generate the plot
+    save_csv=True,  # Set to True to save the results to a CSV
 )
