@@ -4,9 +4,24 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.interpolate import griddata
+import time
 
 
 def stratified_shuffle_split_indices(X, y, n_splits=5, test_size=0.2, random_state=42):
+    """
+    Generate stratified shuffle split indices for cross-validation.
+
+    Parameters:
+    - X: Features dataset.
+    - y: Labels dataset.
+    - n_splits: Number of splits for cross-validation.
+    - test_size: Proportion of the dataset to include in the test split.
+    - random_state: Seed for random number generator.
+
+    Yields:
+    - train_indices: Indices for the training set.
+    - test_indices: Indices for the test set.
+    """
     n_samples = len(X)
     n_test = int(np.ceil(test_size * n_samples))
 
@@ -39,19 +54,25 @@ def gridSearch(
     save_csv=False,
 ):
     """
-    model_class: The class of the model to be optimized (e.g., RVFL).
-    X: Features of the dataset.
-    y: Target labels of the dataset.
-    param_grid: List of dictionaries with hyperparameters to search over.
-    test_data: Features of the test dataset.
-    test_labels: Target labels of the test dataset.
-    metrics: List of metric names to calculate.
-    n_iterations: Number of iterations to perform.
-    n_splits: Number of splits for cross-validation.
-    test_size: Proportion of the dataset to include in the test split.
-    random_state: Random seed for reproducibility.
-    generate_plot: Boolean to control whether a 3D plot should be generated.
-    save_csv: Boolean to control whether results should be saved to a CSV file.
+    Perform grid search with cross-validation to find the best hyperparameters for a model.
+
+    Parameters:
+    - model_class: The model class to be instantiated.
+    - X: Features dataset.
+    - y: Labels dataset.
+    - param_grid: Dictionary of hyperparameters to search.
+    - test_data: Features of the test dataset.
+    - test_labels: Labels of the test dataset.
+    - metrics: List of metrics to evaluate.
+    - n_iterations: Number of iterations for grid search.
+    - n_splits: Number of splits for cross-validation.
+    - test_size: Proportion of the dataset to include in the test split.
+    - random_state: Seed for random number generator.
+    - generate_plot: Whether to generate a 3D surface plot.
+    - save_csv: Whether to save results to CSV files.
+
+    Returns:
+    - Dictionary with best hyperparameters, best score, final model, and test evaluation results.
     """
     if metrics is None:
         metrics = ["accuracy"]
@@ -68,8 +89,14 @@ def gridSearch(
     recall_data = []
     roc_data = []
 
+    # To store metrics over all iterations
+    metrics_summary = {metric: [] for metric in metrics}
+
+    hyperparam_search_times = []
+
     # Begin iterating
     for _ in tqdm(range(n_iterations), desc="Iterations"):
+        start_time = time.time()
         for params in param_grid:
             scores = {metric: [] for metric in metrics}
 
@@ -91,6 +118,10 @@ def gridSearch(
             # Calculate the mean score for each metric
             mean_scores = {metric: np.mean(scores[metric]) for metric in metrics}
 
+            # Store scores in metrics_summary
+            for metric in metrics:
+                metrics_summary[metric].append(mean_scores[metric])
+
             # Determine if this is the best score based on the primary metric (assumed to be the first one)
             primary_metric = metrics[0]
             if mean_scores[primary_metric] > best_score:
@@ -110,19 +141,47 @@ def gridSearch(
             if "roc_auc" in metrics:
                 roc_data.append(mean_scores["roc_auc"])
 
-    print(f"Best {primary_metric}: {best_score:.2f}")
-    print("Best Parameters:", best_params)
+        end_time = time.time()
+        hyperparam_search_times.append(end_time - start_time)
+
+    # Calculate mean and std for each metric over all iterations
+    metrics_means = {metric: np.mean(metrics_summary[metric]) for metric in metrics}
+    metrics_stds = {metric: np.std(metrics_summary[metric]) for metric in metrics}
+
+    print("\nTraining results:")
+
+    print("\nMean of metrics over iterations:")
+    for metric in metrics:
+        print(f"{metric.capitalize()} Mean: {metrics_means[metric]:.2f}")
+    print("\nStandard deviation of metrics over iterations:")
+    for metric in metrics:
+        print(f"{metric.capitalize()} Std: {metrics_stds[metric]:.2f}")
 
     # Train the final model with the best parameters on the entire training set
-    final_model = model_class(**best_params)
-    final_model.fit(X, y)
+    test_eval_times = []
+    for _ in tqdm(range(n_iterations), desc="Test Evaluations"):
+        test_start_time = time.time()
+        final_model = model_class(**best_params)
+        final_model.fit(X, y)
 
-    # Evaluate the final model on the test set
-    test_eval_results = final_model.eval(test_data, test_labels, metrics=metrics)
+        # Evaluate the final model on the test set
+        test_eval_results = final_model.eval(test_data, test_labels, metrics=metrics)
+        test_end_time = time.time()
+        test_eval_times.append(test_end_time - test_start_time)
 
     print("\nTest Set Evaluation:")
     for metric in metrics:
         print(f"Test {metric.capitalize()}: {test_eval_results[metric]:.2f}")
+
+    print(
+        f"\nMean Hyperparameter Search Time: {np.mean(hyperparam_search_times):.2f} seconds"
+    )
+    print(
+        f"Std of Hyperparameter Search Time: {np.std(hyperparam_search_times):.2f} seconds"
+    )
+
+    print(f"\nMean Test Evaluation Time: {np.mean(test_eval_times):.2f} seconds")
+    print(f"Std of Test Evaluation Time: {np.std(test_eval_times):.2f} seconds")
 
     # Save results to CSV if requested
     if save_csv:
@@ -140,6 +199,27 @@ def gridSearch(
         results_df.to_csv("grid_search_results.csv", index=False)
         print("\nResults saved to grid_search_results.csv")
 
+        # Save mean and std to a separate CSV
+        summary_df = pd.DataFrame(
+            {
+                "Metric": metrics,
+                "Mean": [metrics_means[m] for m in metrics],
+                "Std": [metrics_stds[m] for m in metrics],
+            }
+        )
+        summary_df.to_csv("summary_grid_search_results.csv", index=False)
+        print("Summary saved to summary_grid_search_results.csv")
+
+        # Save Hyperparams to a separate CSV
+        summary_df = pd.DataFrame(
+            {
+                "best_params": best_params,
+                "best_score": best_score,
+            }
+        )
+        summary_df.to_csv("summary_grid_search_best_params.csv", index=False)
+        print("Summary saved to summary_grid_best_params.csv")
+
     # Plot 3D surface if requested
     if generate_plot:
         plot_3d_surface(num_neurons_data, regularization_data, accuracy_data)
@@ -153,6 +233,14 @@ def gridSearch(
 
 
 def plot_3d_surface(num_neurons_data, regularization_data, accuracy_data):
+    """
+    Generate a 3D surface plot to visualize hyperparameter effects on model accuracy.
+
+    Parameters:
+    - num_neurons_data: List of number of neurons used in the model.
+    - regularization_data: List of regularization values used in the model.
+    - accuracy_data: List of accuracy values corresponding to the hyperparameters.
+    """
     fig = plt.figure()
     ax = fig.add_subplot(111, projection="3d")
 
@@ -183,6 +271,9 @@ def plot_3d_surface(num_neurons_data, regularization_data, accuracy_data):
         num_neurons_mesh, np.log2(regularization_mesh), accuracy_mesh, cmap="inferno"
     )
     ax.set_yticks(exponents, labels)
-
+    ax.set_xlabel("Number of Neurons")
+    ax.set_ylabel("Regularization Value")
+    ax.set_zlabel("Accuracy")
     plt.title("3D Surface Plot of Hyperparameter Effects")
+
     plt.show()

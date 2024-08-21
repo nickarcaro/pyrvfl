@@ -1,4 +1,4 @@
-from pyrvfl.Deep_RVFL import DeepRVFL
+from pyrvfl.Ensemble_Deep_RVFL import EnsembleDeepRVFL
 from pyrvfl.metrics.gridSearch import gridSearch
 import numpy as np
 from pyrvfl.utils.utils import standardize_rvfl
@@ -53,7 +53,7 @@ test_data = standardize_rvfl(test_data)
 # Conduct grid search and evaluate on test data with specified metrics
 metrics_to_evaluate = ["accuracy", "f1_score", "precision", "recall", "roc_auc"]
 result = gridSearch(
-    DeepRVFL,
+    EnsembleDeepRVFL,
     train_data,
     train_labels,
     param_grid,

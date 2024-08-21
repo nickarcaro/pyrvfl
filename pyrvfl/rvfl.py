@@ -31,8 +31,6 @@ class RVFL:
         w_random_vec_range,
         b_random_vec_range,
         activation,
-        same_feature=False,
-        task_type="classification",
     ):
 
         self.n_nodes = n_nodes
@@ -46,8 +44,6 @@ class RVFL:
         self.activation_function = getattr(a, activation)
         self.data_std = None
         self.data_mean = None
-        self.same_feature = same_feature
-        self.task_type = task_type
 
     def fit(self, data, label):
         """
@@ -78,16 +74,11 @@ class RVFL:
 
         y = one_hot(label, n_class)
 
-        if n_sample > (self.n_nodes + n_feature):
-            self.beta = (
-                np.linalg.inv((self.lam * np.identity(d.shape[1]) + np.dot(d.T, d)))
-                .dot(d.T)
-                .dot(y)
-            )
-        else:
-            self.beta = d.T.dot(
-                np.linalg.inv(self.lam * np.identity(n_sample) + np.dot(d, d.T))
-            ).dot(y)
+        self.beta = (
+            np.linalg.inv((self.lam * np.identity(d.shape[1]) + np.dot(d.T, d)))
+            .dot(d.T)
+            .dot(y)
+        )
 
     def predict(self, data):
         """
@@ -122,6 +113,9 @@ class RVFL:
         assert len(data) == len(label), "Label number does not match data number."
         assert len(label.shape) == 1, "Label should be 1-D array."
 
+        result, proba = self.predict(data)
+
+        """
         h = self.activation_function(
             np.dot(data, self.random_weights) + self.random_bias
         )
@@ -132,7 +126,7 @@ class RVFL:
         result = np.argmax(output, axis=1)
 
         proba = softmax(output)
-
+"""
         if metrics is None:
             metrics = ["accuracy"]  # Métrica predeterminada
 

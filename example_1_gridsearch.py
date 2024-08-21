@@ -1,11 +1,12 @@
-from pyrvfl.Deep_RVFL import DeepRVFL
-from pyrvfl.metrics.gridSearch import gridSearch
 import numpy as np
-from pyrvfl.utils.utils import standardize_rvfl
 import sklearn.datasets as sk_dataset
+from pyrvfl.rvfl import RVFL
+from pyrvfl.metrics.gridSearch import gridSearch
+from pyrvfl.utils.utils import standardize_rvfl
 
 
 def prepare_data_classify(proportion):
+
     dataset = sk_dataset.load_breast_cancer()
     label = dataset["target"]
     data = dataset["data"]
@@ -29,10 +30,10 @@ param_grid = [
     {
         "n_nodes": num_neurons,
         "lam": reg_val,
-        "n_layer": 2,
         "w_random_vec_range": [-1, 1],
         "b_random_vec_range": [0, 1],
         "activation": activations,
+        "task_type": "classification",
     }
     for activations in [
         "relu",
@@ -50,10 +51,27 @@ train_data = standardize_rvfl(train_data)
 test_data = standardize_rvfl(test_data)
 
 
+"""
+train_data = minmax_normalize(train_data)
+test_data = minmax_normalize(test_data)
+"""
+param_grid = [
+    {
+        "n_nodes": num_neurons,
+        "lam": reg_val,
+        "w_random_vec_range": [-1, 1],
+        "b_random_vec_range": [0, 1],
+        "activation": "relu",
+    }
+    for num_neurons in [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+    for reg_val in [2**exp for exp in range(-6, 13, 2)]
+]
+
+
 # Conduct grid search and evaluate on test data with specified metrics
 metrics_to_evaluate = ["accuracy", "f1_score", "precision", "recall", "roc_auc"]
 result = gridSearch(
-    DeepRVFL,
+    RVFL,
     train_data,
     train_labels,
     param_grid,
