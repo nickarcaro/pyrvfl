@@ -42,3 +42,22 @@ def minmax_normalize(x, feature_range=(0, 1)):
     shift = feature_range[0] - min_val * scale
 
     return x * scale + shift
+
+
+@staticmethod
+def prepare_data_classify(dataset, proportion):
+
+    label = dataset["target"]
+    data = dataset["data"]
+
+    shuffle_index = np.arange(len(label))
+    np.random.shuffle(shuffle_index)
+
+    train_number = int(proportion * len(label))
+    train_index = shuffle_index[:train_number]
+    val_index = shuffle_index[train_number:]
+    data_train = data[train_index]
+    label_train = label[train_index]
+    data_val = data[val_index]
+    label_val = label[val_index]
+    return (data_train, label_train), (data_val, label_val)

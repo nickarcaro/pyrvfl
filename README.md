@@ -6,5 +6,6 @@ to write your content.
 
 #añadir:
 
-- problemas de regresion
+- problemas de regresion X
 - empaquetar a github
+- parametrizar

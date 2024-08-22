@@ -1,4 +1,6 @@
 import numpy as np
+import math
+from numpy import linalg as LA
 from pyrvfl.utils.activation import Activation
 from pyrvfl.utils.utils import get_random_vectors, one_hot, softmax
 from pyrvfl.metrics.metrics import (
@@ -12,7 +14,7 @@ from pyrvfl.metrics.metrics import (
 )
 
 
-class RVFL:
+class SPRVFL:
     """A simple RVFL classifier or regression.
 
     Attributes:
@@ -32,9 +34,10 @@ class RVFL:
 
     def __init__(
         self,
-        n_nodes=100,
-        lam=1e-3,
-        activation="relu",
+        n_nodes,
+        lam,
+        activation,
+        same_feature=False,
         task_type="classification",
     ):
         assert task_type in [
@@ -52,8 +55,43 @@ class RVFL:
         self.activation_function = getattr(a, activation)
         self.data_std = None
         self.data_mean = None
-
+        self.same_feature = same_feature
         self.task_type = task_type
+
+    # The FISTA algorithm function is given below
+
+    def fista1(self, A, b, l, maxit):
+        J_save = np.zeros((maxit, 1))
+        diff = np.zeros((maxit - 1, 1))
+        AA = np.dot(A.transpose(), A)
+        Lf = np.max(LA.eigvals(AA))
+        Li = 1 / Lf
+        alp = l * Li
+        m = np.size(A, 1)
+        [N, n] = b.shape
+        x = np.zeros((m, n))
+        yk = x
+        tk = 1
+        L1 = 2 * Li * AA
+
+        KK = np.dot(np.transpose(A), b)
+        L2 = 2 * Li * KK
+
+        # tk1 = 0.5 + 0.5*sqrt(1+4*tk^2);
+        for _ in range(0, maxit):
+            med = np.dot(L1, yk)
+            ck = yk - med + L2
+            x1 = (np.maximum(abs(ck) - alp, 0)) * np.sign(ck)
+
+            sqrt = math.sqrt(1 + 4 * tk**2)
+            tk1 = 0.5 + 0.5 * sqrt
+            tt = (tk - 1) / tk1
+            yk = x1 + tt * (x - x1)
+            tk = tk1
+
+            x = x1
+
+        return x
 
     def fit(self, data, label):
         """
@@ -80,8 +118,25 @@ class RVFL:
             np.dot(data, self.random_weights)
             + np.dot(np.ones([n_sample, 1]), self.random_bias)
         )
+
+        #########################################################################################################
+        rbeta = self.fista1(h, data, 0.01, 100)
+        rbeta = np.transpose(rbeta)  # l1-regulraization
+        rbias = np.sum(rbeta, axis=0) / self.n_nodes
+
+        rbias = rbias.reshape(-1, self.n_nodes)
+
+        xxx = np.dot(data, rbeta)
+        yyy = np.dot(np.ones([n_sample, 1]), rbias)
+        h1 = xxx + yyy
+        h = h1
+
+        #########################################################################################################
+
         d = np.concatenate([h, data], axis=1)
+
         d = np.concatenate([d, np.ones_like(d[:, 0:1])], axis=1)
+
         if self.task_type == "classification":
             n_class = len(np.unique(label))
             y = one_hot(label, n_class)
@@ -112,7 +167,6 @@ class RVFL:
         d = np.concatenate([h, data], axis=1)
         d = np.concatenate([d, np.ones_like(d[:, 0:1])], axis=1)
         output = np.dot(d, self.beta)
-
         if self.task_type == "classification":
             proba = softmax(output)
             result = np.argmax(proba, axis=1)

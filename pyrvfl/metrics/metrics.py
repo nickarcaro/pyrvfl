@@ -86,3 +86,36 @@ def roc_auc(y_true, y_score):
         fpr_prev = fpr_current
 
     return roc_auc_score
+
+
+@staticmethod
+def mae(y_true, y_pred):
+    return np.mean(np.abs(y_true - y_pred))
+
+
+@staticmethod
+def mse(y_true, y_pred):
+    return np.mean((y_true - y_pred) ** 2)
+
+
+@staticmethod
+def rmse(y_true, y_pred):
+    return np.sqrt(np.mean((y_true - y_pred) ** 2))
+
+
+@staticmethod
+def r2_score(y_true, y_pred):
+    """
+    Calculate the R^2 (coefficient of determination) regression score.
+
+    Parameters:
+        y_true (array-like): The true labels.
+        y_pred (array-like): The predicted labels.
+
+    Returns:
+        r2_score (float): The R^2 score.
+    """
+    ss_res = np.sum((y_true - y_pred) ** 2)
+    ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
+    r2 = 1 - (ss_res / ss_tot)
+    return r2
