@@ -1,7 +1,7 @@
 from ucimlrepo import fetch_ucirepo
 import numpy as np
 import sklearn.datasets as sk_dataset
-from pyrvfl.rvfl import RVFL
+from pyrvfl.models.rvfl import RVFL
 from pyrvfl.metrics.gridSearch import gridSearch
 from pyrvfl.utils.utils import standardize_rvfl
 

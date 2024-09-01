@@ -61,3 +61,59 @@ def prepare_data_classify(dataset, proportion):
     data_val = data[val_index]
     label_val = label[val_index]
     return (data_train, label_train), (data_val, label_val)
+
+
+@staticmethod
+def stratified_shuffle_split_indices(X, y, n_splits=5, test_size=0.2, random_state=42):
+    """
+    Generate stratified shuffle split indices for cross-validation.
+
+    Parameters:
+    - X: Features dataset.
+    - y: Labels dataset.
+    - n_splits: Number of splits for cross-validation.
+    - test_size: Proportion of the dataset to include in the test split.
+    - random_state: Seed for random number generator.
+
+    Yields:
+    - train_indices: Indices for the training set.
+    - test_indices: Indices for the test set.
+    """
+    n_samples = len(X)
+    n_test = int(np.ceil(test_size * n_samples))
+
+    if random_state is not None:
+        np.random.seed(random_state)
+
+    for _ in range(n_splits):
+        indices = np.arange(n_samples)
+        np.random.shuffle(indices)
+
+        test_indices = indices[:n_test]
+        train_indices = indices[n_test:]
+
+        yield train_indices, test_indices
+
+
+@staticmethod
+def stratify_split(X, y):
+    class_counts = np.sum(y, axis=0)
+
+    # Calcula la proporción de muestras que quieres en el conjunto de entrenamiento
+    train_ratio = 0.8
+
+    # Calcula la cantidad de muestras para el conjunto de entrenamiento
+    train_size = int(train_ratio * len(X))
+
+    # Hacemos un shuffle de los índices
+    indices = np.random.permutation(len(X))
+
+    # Selecciona los índices para el conjunto de entrenamiento
+    train_indices = indices[:train_size]
+    test_indices = indices[train_size:]
+
+    # Divide los datos en el conjunto de entrenamiento y prueba
+    X_train, y_train = X[train_indices], y[train_indices]
+    X_test, y_test = X[test_indices], y[test_indices]
+
+    return X_train, X_test, y_train, y_test
