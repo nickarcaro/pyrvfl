@@ -1,25 +1,18 @@
 import numpy as np
-from pyrvfl.utils.activation import Activation
-from pyrvfl.utils.utils import get_random_vectors, one_hot, softmax
-from pyrvfl.metrics.metrics import (
-    f1_score,
-    roc_auc,
-    accuracy_score,
-    mae,
-    mse,
-    rmse,
-    r2_score,
-)
+from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
+from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.metrics import accuracy_score, mean_absolute_error
+from sklearn.utils.multiclass import unique_labels
 
 
-class DeepRVFL:
-
+class DeepRVFL(BaseEstimator, ClassifierMixin):
     def __init__(
         self,
-        n_nodes,
-        lam,
-        activation,
-        n_layer,
+        n_nodes=100,
+        lam=1e-3,
+        activation="relu",
+        n_layer=3,
         task_type="classification",
     ):
         assert task_type in [
@@ -28,17 +21,57 @@ class DeepRVFL:
         ], 'task_type should be "classification" or "regression".'
         self.n_nodes = n_nodes
         self.lam = lam
-        self.w_random_range = [-1, 1]
-        self.b_random_range = [0, 1]
+        self.activation = activation
+        self.n_layer = n_layer
+        self.task_type = task_type
         self.random_weights = []
         self.random_bias = []
         self.beta = None
-        self.n_layer = n_layer
-        a = Activation()
-        self.activation_function = getattr(a, activation)
+        self.is_fitted_ = False
+        self.classes_ = None
+
+        # Para Batch Normalization
         self.gamma = [np.ones(self.n_nodes) for _ in range(n_layer)]
         self.beta_bn = [np.zeros(self.n_nodes) for _ in range(n_layer)]
-        self.task_type = task_type
+
+    def _activation_function(self, x):
+        if self.activation == "relu":
+            return np.maximum(0, x)
+        elif self.activation == "sigmoid":
+            return 1 / (1 + np.exp(-x))
+        elif self.activation == "tanh":
+            return np.tanh(x)
+        elif self.activation == "linear":
+            return x
+        elif self.activation == "hardlim":
+            return np.where(x >= 0, 1, 0)
+        elif self.activation == "softlim":
+            return np.where(x >= 0, 1, -1)
+        elif self.activation == "sin":
+            return np.sin(x)
+        elif self.activation == "hardlims":
+            return np.where(x >= 0, 1, -1)
+        elif self.activation == "tribas":
+            return np.maximum(0, 1 - np.abs(x))
+        elif self.activation == "radbas":
+            return np.exp(-(x**2))
+        else:
+            raise ValueError("Unsupported activation function")
+
+    # Funciones auxiliares
+    def _get_random_vectors(self, input_size, output_size, range_vals):
+        return np.random.uniform(
+            range_vals[0], range_vals[1], (input_size, output_size)
+        )
+
+    def _one_hot(self, labels, n_classes):
+        encoder = OneHotEncoder(sparse_output=False)
+        labels = labels.reshape(-1, 1)
+        return encoder.fit_transform(labels)
+
+    def _softmax(self, x):
+        exps = np.exp(x - np.max(x, axis=1, keepdims=True))
+        return exps / np.sum(exps, axis=1, keepdims=True)
 
     def batch_normalization(self, X, layer_index, epsilon=1e-5):
         mean = np.mean(X, axis=0)
@@ -47,96 +80,66 @@ class DeepRVFL:
         out = self.gamma[layer_index] * X_normalized + self.beta_bn[layer_index]
         return out
 
-    def fit(self, data, label):
-        assert len(data.shape) > 1, "Data shape should be [n, dim]."
-        assert len(data) == len(label), "Label number does not match data number."
-        assert len(label.shape) == 1, "Label should be 1-D array."
+    def fit(self, X, y):
+        X, y = check_X_y(X, y)
+        n_samples, n_features = X.shape
 
-        h = data
+        h = X
         for i in range(self.n_layer):
-            # Generar pesos y sesgos aleatorios para cada capa
             self.random_weights.append(
-                get_random_vectors(len(h[0]), self.n_nodes, self.w_random_range)
+                self._get_random_vectors(
+                    n_features if i == 0 else self.n_nodes, self.n_nodes, [-1, 1]
+                )
             )
-            self.random_bias.append(
-                get_random_vectors(1, self.n_nodes, self.b_random_range)
-            )
-            # Propagación hacia adelante
+            self.random_bias.append(self._get_random_vectors(1, self.n_nodes, [0, 1]))
             h = np.dot(h, self.random_weights[i]) + self.random_bias[i]
-            # Aplicar Normalización por Lote
             h = self.batch_normalization(h, i)
-            # Aplicar función de activación
-            h = self.activation_function(h)
+            h = self._activation_function(h)
 
-        # Calcular beta para la capa de salida
+        # Para la clasificación, definir las clases y one-hot encoding
         if self.task_type == "classification":
-            n_class = len(np.unique(label))
-            label = one_hot(label, n_class)
-        elif self.task_type == "regression":
-            label = label
+            self.classes_ = unique_labels(y)
+            n_classes = len(self.classes_)
+            y = self._one_hot(y, n_classes)
 
         self.beta = np.dot(
             np.linalg.pinv(np.dot(h.T, h) + np.eye(self.n_nodes) * self.lam),
-            np.dot(h.T, label),
+            np.dot(h.T, y),
         )
 
-    def predict(self, data):
-        h = data
+        self.is_fitted_ = True
+        return self
+
+    def predict(self, X):
+        check_is_fitted(self, "is_fitted_")
+        X = check_array(X)
+        h = X
         for i in range(self.n_layer):
             h = np.dot(h, self.random_weights[i]) + self.random_bias[i]
             h = self.batch_normalization(h, i)
-            h = self.activation_function(h)
+            h = self._activation_function(h)
 
         output = np.dot(h, self.beta)
 
         if self.task_type == "classification":
-            result = np.argmax(softmax(output), axis=1)
-            proba = softmax(output)
-            return result, proba
+            return np.argmax(self._softmax(output), axis=1)
         elif self.task_type == "regression":
-            return output.flatten()  # Devolver las predicciones para regresión
+            return output.flatten()
 
-    def eval(self, data, label, metrics=None):
-        if metrics is None:
-            metrics = ["accuracy"] if self.task_type == "classification" else ["mae"]
+    def predict_proba(self, X):
+        check_is_fitted(self, "is_fitted_")
+        X = check_array(X)
+        h = X
+        for i in range(self.n_layer):
+            h = np.dot(h, self.random_weights[i]) + self.random_bias[i]
+            h = self.batch_normalization(h, i)
+            h = self._activation_function(h)
 
+        output = np.dot(h, self.beta)
+        return self._softmax(output)
+
+    def score(self, X, y):
         if self.task_type == "classification":
-            result, proba = self.predict(data)
-            results = {}
-
-            if "accuracy" in metrics:
-                results["accuracy"] = accuracy_score(label, result)
-            if "f1_score" in metrics:
-                results["f1_score"] = f1_score(label, result)["f1_score"]
-            if "precision" in metrics:
-                results["precision"] = f1_score(label, result)["precision"]
-            if "recall" in metrics:
-                results["recall"] = f1_score(label, result)["recall"]
-            if "tpr" in metrics:
-                results["tpr"] = f1_score(label, result)["tpr"]
-            if "fnr" in metrics:
-                results["fnr"] = f1_score(label, result)["fnr"]
-            if "fpr" in metrics:
-                results["fpr"] = f1_score(label, result)["fpr"]
-            if "roc_auc" in metrics and len(np.unique(label)) == 2:
-                results["roc_auc"] = roc_auc(label, proba[:, 1])
-
-            return results
-
+            return accuracy_score(y, self.predict(X))
         elif self.task_type == "regression":
-            result = self.predict(data)
-            if metrics is None:
-                metrics = ["mae"]  # Métrica predeterminada
-
-            results = {}
-
-            if "mae" in metrics:
-                results["mae"] = mae(label, result)
-            if "mse" in metrics:
-                results["mse"] = mse(label, result)
-            if "rmse" in metrics:
-                results["rmse"] = rmse(label, result)
-            if "r2" in metrics:
-                results["r2"] = r2_score(label, result)
-
-            return results
+            return mean_absolute_error(y, self.predict(X))
