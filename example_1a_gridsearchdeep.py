@@ -3,6 +3,7 @@ from sklearn.datasets import load_iris
 from pyrvfl.models.Deep_RVFL import DeepRVFL
 from sklearn.model_selection import cross_val_score
 from sklearn.pipeline import Pipeline
+
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import KFold
 import numpy as np
@@ -16,8 +17,8 @@ deep_rvfl_clf = DeepRVFL(task_type="classification")
 
 # Definir el espacio de búsqueda de hiperparámetros
 param_grid = {
-    "n_nodes": [50, 100, 150],
-    "lam": [1e-3, 1e-2, 1e-1],
+    "n_nodes": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+    "lam": [2**exp for exp in range(-6, 13, 2)],
     "activation": ["relu", "sigmoid", "tanh"],
     "n_layer": [2, 3, 4],
 }

@@ -10,9 +10,10 @@ class DeepRVFL(BaseEstimator, ClassifierMixin):
     def __init__(
         self,
         n_nodes=100,
-        lam=1e-3,
+        lam=1e-6,
         activation="relu",
-        n_layer=3,
+        n_layer=2,
+        same_feature=False,
         task_type="classification",
     ):
         assert task_type in [
@@ -23,16 +24,17 @@ class DeepRVFL(BaseEstimator, ClassifierMixin):
         self.lam = lam
         self.activation = activation
         self.n_layer = n_layer
+        self.same_feature = same_feature
         self.task_type = task_type
         self.random_weights = []
         self.random_bias = []
         self.beta = None
-        self.is_fitted_ = False
+        self.data_mean = [None] * self.n_layer
+        self.data_std = [None] * self.n_layer
+        self.w_random_range = [-1, 1]
+        self.b_random_range = [0, 1]
         self.classes_ = None
-
-        # Para Batch Normalization
-        self.gamma = [np.ones(self.n_nodes) for _ in range(n_layer)]
-        self.beta_bn = [np.zeros(self.n_nodes) for _ in range(n_layer)]
+        self.is_fitted_ = False
 
     def _activation_function(self, x):
         if self.activation == "relu":
@@ -59,10 +61,8 @@ class DeepRVFL(BaseEstimator, ClassifierMixin):
             raise ValueError("Unsupported activation function")
 
     # Funciones auxiliares
-    def _get_random_vectors(self, input_size, output_size, range_vals):
-        return np.random.uniform(
-            range_vals[0], range_vals[1], (input_size, output_size)
-        )
+    def _get_random_vectors(self, m, n, scale_range):
+        return np.random.uniform(scale_range[0], scale_range[1], (m, n))
 
     def _one_hot(self, labels, n_classes):
         encoder = OneHotEncoder(sparse_output=False)
@@ -73,39 +73,62 @@ class DeepRVFL(BaseEstimator, ClassifierMixin):
         exps = np.exp(x - np.max(x, axis=1, keepdims=True))
         return exps / np.sum(exps, axis=1, keepdims=True)
 
-    def batch_normalization(self, X, layer_index, epsilon=1e-5):
-        mean = np.mean(X, axis=0)
-        variance = np.var(X, axis=0)
-        X_normalized = (X - mean) / np.sqrt(variance + epsilon)
-        out = self.gamma[layer_index] * X_normalized + self.beta_bn[layer_index]
-        return out
+    def _standardize(self, X, layer_index):
+        """Normalizar los datos para cada capa"""
+        if self.data_mean[layer_index] is None or self.data_std[layer_index] is None:
+            mean = np.mean(X, axis=0)
+            std = np.std(X, axis=0)
+            std = np.maximum(std, 1e-5)  # Evitar divisiones por cero
+            self.data_mean[layer_index] = mean
+            self.data_std[layer_index] = std
+
+        return (X - self.data_mean[layer_index]) / self.data_std[layer_index]
 
     def fit(self, X, y):
         X, y = check_X_y(X, y)
         n_samples, n_features = X.shape
 
-        h = X
-        for i in range(self.n_layer):
-            self.random_weights.append(
-                self._get_random_vectors(
-                    n_features if i == 0 else self.n_nodes, self.n_nodes, [-1, 1]
-                )
-            )
-            self.random_bias.append(self._get_random_vectors(1, self.n_nodes, [0, 1]))
-            h = np.dot(h, self.random_weights[i]) + self.random_bias[i]
-            h = self.batch_normalization(h, i)
-            h = self._activation_function(h)
+        # Inicializar random weights y biases
 
-        # Para la clasificación, definir las clases y one-hot encoding
+        h = X.copy()
+        d = self._standardize(X, 0)
+
+        # Configurar etiquetas
         if self.task_type == "classification":
             self.classes_ = unique_labels(y)
-            n_classes = len(self.classes_)
-            y = self._one_hot(y, n_classes)
+            y = self._one_hot(y, len(self.classes_))
+        else:
+            y = y
 
-        self.beta = np.dot(
-            np.linalg.pinv(np.dot(h.T, h) + np.eye(self.n_nodes) * self.lam),
-            np.dot(h.T, y),
-        )
+        # Estandarizar y propagar hacia adelante
+        for i in range(self.n_layer):
+            h = self._standardize(h, i)  # Normalizar en cada capa
+            self.random_weights.append(
+                self._get_random_vectors(h.shape[1], self.n_nodes, self.w_random_range)
+            )
+            self.random_bias.append(
+                self._get_random_vectors(1, self.n_nodes, self.b_random_range)
+            )
+
+            h = self._activation_function(
+                np.dot(h, self.random_weights[i])
+                + np.dot(np.ones([n_samples, 1]), self.random_bias[i])
+            )
+            d = np.concatenate([h, d], axis=1)
+
+        d = np.concatenate([d, np.ones_like(d[:, 0:1])], axis=1)
+
+        # Calcular beta
+        if n_samples > (self.n_nodes * self.n_layer + n_features):
+            self.beta = (
+                np.linalg.inv((self.lam * np.identity(d.shape[1]) + np.dot(d.T, d)))
+                .dot(d.T)
+                .dot(y)
+            )
+        else:
+            self.beta = d.T.dot(
+                np.linalg.inv(self.lam * np.identity(n_samples) + np.dot(d, d.T))
+            ).dot(y)
 
         self.is_fitted_ = True
         return self
@@ -113,30 +136,52 @@ class DeepRVFL(BaseEstimator, ClassifierMixin):
     def predict(self, X):
         check_is_fitted(self, "is_fitted_")
         X = check_array(X)
-        h = X
-        for i in range(self.n_layer):
-            h = np.dot(h, self.random_weights[i]) + self.random_bias[i]
-            h = self.batch_normalization(h, i)
-            h = self._activation_function(h)
+        n_samples = len(X)
+        h = X.copy()
+        d = self._standardize(X, 0)
 
-        output = np.dot(h, self.beta)
+        # Propagación hacia adelante
+        for i in range(self.n_layer):
+            h = self._standardize(h, i)
+            h = self._activation_function(
+                np.dot(h, self.random_weights[i])
+                + np.dot(np.ones([n_samples, 1]), self.random_bias[i])
+            )
+            d = np.concatenate([h, d], axis=1)
+
+        d = np.concatenate([d, np.ones_like(d[:, 0:1])], axis=1)
+        output = np.dot(d, self.beta)
 
         if self.task_type == "classification":
-            return np.argmax(self._softmax(output), axis=1)
+            proba = self._softmax(output)
+            return np.argmax(proba, axis=1)
         elif self.task_type == "regression":
-            return output.flatten()
+            return output
 
     def predict_proba(self, X):
         check_is_fitted(self, "is_fitted_")
         X = check_array(X)
-        h = X
-        for i in range(self.n_layer):
-            h = np.dot(h, self.random_weights[i]) + self.random_bias[i]
-            h = self.batch_normalization(h, i)
-            h = self._activation_function(h)
+        n_samples = len(X)
+        h = X.copy()
+        d = self._standardize(X, 0)
 
-        output = np.dot(h, self.beta)
-        return self._softmax(output)
+        for i in range(self.n_layer):
+            h = self._standardize(h, i)
+            h = self._activation_function(
+                np.dot(h, self.random_weights[i])
+                + np.dot(np.ones([n_samples, 1]), self.random_bias[i])
+            )
+            d = np.concatenate([h, d], axis=1)
+
+        d = np.concatenate([d, np.ones_like(d[:, 0:1])], axis=1)
+        output = np.dot(d, self.beta)
+
+        if self.task_type == "classification":
+            return self._softmax(output)
+        else:
+            raise ValueError(
+                "Probability predictions are not available for regression tasks."
+            )
 
     def score(self, X, y):
         if self.task_type == "classification":

@@ -1,7 +1,6 @@
 import numpy as np
 import sklearn.datasets as sk_dataset
 
-
 # from pyrvfl.models.rvfl import RVFL
 from pyrvfl.models.rvfl import RVFL
 from pyrvfl.models.SPRVFL import SPRVFL

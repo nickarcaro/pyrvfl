@@ -11,10 +11,10 @@ ensemble_rvfl_clf = EnsembleDeepRVFL(task_type="classification")
 
 # Definir el espacio de búsqueda de hiperparámetros
 param_grid = {
-    "n_nodes": [50, 100],
-    "lam": [1e-6, 1e-3],
-    "activation": ["relu", "sigmoid"],
-    "n_layer": [2, 3],
+    "n_nodes": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+    "lam": [2**exp for exp in range(-6, 13, 2)],
+    "activation": ["relu", "sigmoid", "tanh"],
+    "n_layer": [2, 3, 4],
 }
 
 # Crear el GridSearchCV
