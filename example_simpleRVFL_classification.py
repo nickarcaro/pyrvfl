@@ -4,6 +4,7 @@ import sklearn.datasets as sk_dataset
 
 # from pyrvfl.models.rvfl import RVFL
 from pyrvfl.models.rvfl import RVFL
+from pyrvfl.models.RVFLK import RVFLK
 from pyrvfl.models.SPRVFL import SPRVFL
 from pyrvfl.models.Deep_RVFL import DeepRVFL
 from sklearn.model_selection import train_test_split
@@ -20,9 +21,13 @@ X_train, X_test, y_train, y_test = train_test_split(
 )
 
 # Crear una instancia del modelo RVFL para clasificación
+"""
 rvfl_clf = DeepRVFL(
     n_nodes=100, lam=1e-3, n_layer=3, activation="relu", task_type="classification"
 )
+
+"""
+rvfl_clf = RVFLK(n_nodes=100, lam=1e-3, activation="relu", task_type="classification")
 
 # Entrenar el modelo
 rvfl_clf.fit(X_train, y_train)
@@ -30,8 +35,10 @@ rvfl_clf.fit(X_train, y_train)
 # Hacer predicciones
 y_pred = rvfl_clf.predict(X_test)
 
+
 # Evaluar el modelo
 accuracy = accuracy_score(y_test, y_pred)
+
 f1 = f1_score(y_test, y_pred, average="micro")
 recall = recall_score(y_test, y_pred, average="micro")
 precision = precision_score(y_test, y_pred, average="micro")
