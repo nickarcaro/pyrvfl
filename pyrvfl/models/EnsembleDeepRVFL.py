@@ -157,7 +157,7 @@ class EnsembleDeepRVFL(BaseEstimator, ClassifierMixin):
         X = check_array(X)
         n_samples = len(X)
         h = X.copy()
-        X = self._standardize(X, 0)
+
         outputs = []
 
         for i in range(self.n_layer):
