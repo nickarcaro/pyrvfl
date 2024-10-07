@@ -102,7 +102,7 @@ class DeepRVFL(BaseEstimator, ClassifierMixin):
                 np.dot(h, self.random_weights[i])
                 + np.dot(np.ones([n_samples, 1]), self.random_bias[i])
             )
-            d = np.concatenate([h, d], axis=1)
+            d = np.concatenate([h, X], axis=1)
 
         d = np.concatenate([d, np.ones_like(d[:, 0:1])], axis=1)
 
@@ -134,7 +134,7 @@ class DeepRVFL(BaseEstimator, ClassifierMixin):
                 np.dot(h, self.random_weights[i])
                 + np.dot(np.ones([n_samples, 1]), self.random_bias[i])
             )
-            d = np.concatenate([h, d], axis=1)
+            d = np.concatenate([h, X], axis=1)
 
         d = np.concatenate([d, np.ones_like(d[:, 0:1])], axis=1)
         output = np.dot(d, self.beta)
@@ -157,7 +157,7 @@ class DeepRVFL(BaseEstimator, ClassifierMixin):
                 np.dot(h, self.random_weights[i])
                 + np.dot(np.ones([n_samples, 1]), self.random_bias[i])
             )
-            d = np.concatenate([h, d], axis=1)
+            d = np.concatenate([h, X], axis=1)
 
         d = np.concatenate([d, np.ones_like(d[:, 0:1])], axis=1)
         output = np.dot(d, self.beta)

@@ -35,7 +35,7 @@ rvfl_clf = DeepRVFL(
 )
 
 """
-rvfl_clf = EnsembleDeepRVFLK(
+rvfl_clf = DeepRVFL(
     n_nodes=100, lam=1e-3, activation="relu", task_type="classification"
 )
 
