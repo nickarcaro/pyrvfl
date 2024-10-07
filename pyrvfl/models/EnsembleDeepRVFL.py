@@ -161,7 +161,7 @@ class EnsembleDeepRVFL(BaseEstimator, ClassifierMixin):
         outputs = []
 
         for i in range(self.n_layer):
-            h = self._standardize(h, i)
+
             h = self._activation_function(
                 np.dot(h, self.random_weights[i])
                 + np.dot(np.ones([n_samples, 1]), self.random_bias[i])
