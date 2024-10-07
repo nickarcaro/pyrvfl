@@ -1,4 +1,4 @@
-from pyrvfl.models.Ensemble_Deep_RVFL import EnsembleDeepRVFL
+from pyrvfl.Ensemble_Deep_RVFL import EnsembleDeepRVFL
 from pyrvfl.metrics.gridSearch import gridSearch
 import numpy as np
 from pyrvfl.utils.utils import standardize_rvfl

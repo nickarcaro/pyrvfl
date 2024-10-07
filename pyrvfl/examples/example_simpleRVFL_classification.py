@@ -1,13 +1,12 @@
 import numpy as np
 import sklearn.datasets as sk_dataset
 
-from pyrvfl.models.RVFL import RVFL
+
 from pyrvfl.models.RVFLK import RVFLK
 from pyrvfl.models.SPRVFL import SPRVFL
 from pyrvfl.models.DeepRVFL import DeepRVFL
 from pyrvfl.models.DeepRVFLK import DeepRVFLK
 from pyrvfl.models.EnsembleDeepRVFL import EnsembleDeepRVFL
-from pyrvfl.models.EnsembleDeepRVFLK import EnsembleDeepRVFLK
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_iris
 from sklearn.metrics import accuracy_score, f1_score, recall_score, precision_score
