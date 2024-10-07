@@ -36,18 +36,6 @@ class RVFLK(BaseEstimator, ClassifierMixin):
             return np.tanh(x)
         elif self.activation == "linear":
             return x
-        elif self.activation == "hardlim":
-            return np.where(x >= 0, 1, 0)
-        elif self.activation == "softlim":
-            return np.where(x >= 0, 1, -1)
-        elif self.activation == "sin":
-            return np.sin(x)
-        elif self.activation == "hardlims":
-            return np.where(x >= 0, 1, -1)
-        elif self.activation == "tribas":
-            return np.maximum(0, 1 - np.abs(x))
-        elif self.activation == "radbas":
-            return np.exp(-(x**2))
         else:
             raise ValueError("Unsupported activation function")
 
@@ -144,9 +132,44 @@ class RVFLK(BaseEstimator, ClassifierMixin):
         else:
             return output
 
+    def predict_proba(self, X):
+        """Predict probabilities for each class."""
+        check_is_fitted(self, "is_fitted_")
+        X = check_array(X)
+
+        # Apply KMeans
+        kmeans = KMeans(n_clusters=self.k, n_init=10)
+        labels = kmeans.fit_predict(X)
+
+        # List to store h for each cluster
+        h_list = []
+
+        # Iterate over each cluster
+        for i in range(self.k):
+            cluster_data = X[labels == i]
+            h = self._activation_function(
+                np.dot(cluster_data, self.random_weights) + self.random_bias
+            )
+            h_list.append(h)
+
+        # Concatenate all h to get a single h matrix
+        final_h = np.concatenate(h_list, axis=0)
+
+        # Prepare the design matrix d
+        d = np.concatenate([final_h, X], axis=1)
+        d = np.concatenate([d, np.ones((d.shape[0], 1))], axis=1)
+
+        output = d @ self.beta
+        if self.task_type == "classification":
+            return self._softmax(output)
+        else:
+            raise ValueError(
+                "Probability predictions are not available for regression tasks."
+            )
+
     def score(self, X, y):
         """Calculate the score of the model."""
         if self.task_type == "classification":
-            return accuracy_score(y, self.predict(X)[0])
+            return accuracy_score(y, self.predict(X))
         else:
             return mean_absolute_error(y, self.predict(X))

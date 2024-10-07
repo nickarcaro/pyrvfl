@@ -1,5 +1,5 @@
 import numpy as np
-from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
+from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.metrics import accuracy_score, mean_absolute_error
@@ -64,6 +64,10 @@ class EnsembleDeepRVFLK(BaseEstimator, ClassifierMixin):
         encoder = OneHotEncoder(sparse_output=False)
         return encoder.fit_transform(x.reshape(-1, 1))
 
+    def _softmax(self, x):
+        exps = np.exp(x - np.max(x, axis=1, keepdims=True))
+        return exps / np.sum(exps, axis=1, keepdims=True)
+
     def fit(self, X, y):
         X, y = check_X_y(X, y)
         n_sample, n_feature = X.shape
@@ -76,7 +80,6 @@ class EnsembleDeepRVFLK(BaseEstimator, ClassifierMixin):
             y = y
 
         for i in range(self.n_layer):
-
             # Apply KMeans
             kmeans = KMeans(n_clusters=self.k, n_init=10)
             cluster_labels = kmeans.fit_predict(h)
@@ -132,7 +135,6 @@ class EnsembleDeepRVFLK(BaseEstimator, ClassifierMixin):
         outputs = []
 
         for i in range(self.n_layer):
-
             # Apply KMeans
             kmeans = KMeans(n_clusters=self.k, n_init=10)
             cluster_labels = kmeans.fit_predict(h)
@@ -164,6 +166,46 @@ class EnsembleDeepRVFLK(BaseEstimator, ClassifierMixin):
         elif self.task_type == "regression":
             return np.mean(outputs, axis=0)
 
+    def predict_proba(self, X):
+        """Predict probabilities for each class."""
+        check_is_fitted(self, "is_fitted_")
+        data = check_array(X)
+        n_sample = len(X)
+        h = data.copy()
+
+        outputs = []
+
+        for i in range(self.n_layer):
+            # Apply KMeans
+            kmeans = KMeans(n_clusters=self.k, n_init=10)
+            cluster_labels = kmeans.fit_predict(h)
+
+            h_list = []
+            for j in range(self.k):
+                cluster_data = h[cluster_labels == j]
+                n_cluster_sample = len(cluster_data)
+                h_cluster = self._activation_function(
+                    np.dot(cluster_data, self.random_weights[i])
+                    + np.dot(np.ones([n_cluster_sample, 1]), self.random_bias[i])
+                )
+                h_list.append(h_cluster)
+
+            # Concatenate cluster results
+            final_h = np.concatenate(h_list, axis=0)
+            h = final_h
+
+            d = np.concatenate([h, X], axis=1)
+            h = d
+            d = np.concatenate([d, np.ones_like(d[:, 0:1])], axis=1)
+            outputs.append(np.dot(d, self.beta[i]))
+
+        if self.task_type == "classification":
+            return self._softmax(np.sum(outputs, axis=0))
+        else:
+            raise ValueError(
+                "Probability predictions are not available for regression tasks."
+            )
+
     def eval(self, data, label):
         data, label = check_X_y(data, label)
         outputs = self.predict(data)
@@ -171,8 +213,3 @@ class EnsembleDeepRVFLK(BaseEstimator, ClassifierMixin):
             return accuracy_score(label, outputs)
         elif self.task_type == "regression":
             return mean_absolute_error(label, outputs)
-
-    @staticmethod
-    def softmax(x):
-        exp_x = np.exp(x - np.max(x, axis=1, keepdims=True))
-        return exp_x / np.sum(exp_x, axis=1, keepdims=True)

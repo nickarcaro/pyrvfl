@@ -73,17 +73,6 @@ class DeepRVFL(BaseEstimator, ClassifierMixin):
         exps = np.exp(x - np.max(x, axis=1, keepdims=True))
         return exps / np.sum(exps, axis=1, keepdims=True)
 
-    def _standardize(self, X, layer_index):
-        """Normalizar los datos para cada capa"""
-        if self.data_mean[layer_index] is None or self.data_std[layer_index] is None:
-            mean = np.mean(X, axis=0)
-            std = np.std(X, axis=0)
-            std = np.maximum(std, 1e-5)  # Evitar divisiones por cero
-            self.data_mean[layer_index] = mean
-            self.data_std[layer_index] = std
-
-        return (X - self.data_mean[layer_index]) / self.data_std[layer_index]
-
     def fit(self, X, y):
         X, y = check_X_y(X, y)
         n_samples, n_features = X.shape
@@ -91,7 +80,6 @@ class DeepRVFL(BaseEstimator, ClassifierMixin):
         # Inicializar random weights y biases
 
         h = X.copy()
-        d = self._standardize(X, 0)
 
         # Configurar etiquetas
         if self.task_type == "classification":
@@ -138,7 +126,6 @@ class DeepRVFL(BaseEstimator, ClassifierMixin):
         X = check_array(X)
         n_samples = len(X)
         h = X.copy()
-        d = self._standardize(X, 0)
 
         # Propagación hacia adelante
         for i in range(self.n_layer):
@@ -163,10 +150,9 @@ class DeepRVFL(BaseEstimator, ClassifierMixin):
         X = check_array(X)
         n_samples = len(X)
         h = X.copy()
-        d = self._standardize(X, 0)
 
         for i in range(self.n_layer):
-            h = self._standardize(h, i)
+
             h = self._activation_function(
                 np.dot(h, self.random_weights[i])
                 + np.dot(np.ones([n_samples, 1]), self.random_bias[i])

@@ -1,9 +1,9 @@
 import numpy as np
-from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
-from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
+from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.preprocessing import OneHotEncoder
-from sklearn.cluster import KMeans
 from sklearn.metrics import accuracy_score, mean_absolute_error
+from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
+from sklearn.cluster import KMeans
 
 
 class DeepRVFLK(BaseEstimator, ClassifierMixin):
@@ -64,6 +64,7 @@ class DeepRVFLK(BaseEstimator, ClassifierMixin):
         return exps / np.sum(exps, axis=1, keepdims=True)
 
     def fit(self, X, y):
+        """Train the Deep RVFL model."""
         X, y = check_X_y(X, y)
         n_samples, n_features = X.shape
 
@@ -75,7 +76,6 @@ class DeepRVFLK(BaseEstimator, ClassifierMixin):
         cluster_labels = kmeans.fit_predict(X)
 
         for i in range(self.n_layer):
-
             self.random_weights.append(
                 self._get_random_vectors(h.shape[1], self.n_nodes, self.w_random_range)
             )
@@ -119,6 +119,7 @@ class DeepRVFLK(BaseEstimator, ClassifierMixin):
         return self
 
     def predict(self, X):
+        """Make predictions."""
         check_is_fitted(self, "beta")  # Ensure the model is fitted
         X = check_array(X)
         n_samples = len(X)
@@ -127,7 +128,6 @@ class DeepRVFLK(BaseEstimator, ClassifierMixin):
         cluster_labels = KMeans(n_clusters=self.k, n_init=10).fit_predict(X)
 
         for i in range(self.n_layer):
-
             # List to store h for each cluster
             h_list = []
 
@@ -146,13 +146,50 @@ class DeepRVFLK(BaseEstimator, ClassifierMixin):
             d = np.concatenate([h, X], axis=1)
 
         d = np.concatenate([d, np.ones_like(d[:, 0:1])], axis=1)
-        output = np.dot(d, self.beta)
+        output = d @ self.beta
 
         if self.task_type == "classification":
             proba = self._softmax(output)
             return np.argmax(proba, axis=1)
         else:
             return output
+
+    def predict_proba(self, X):
+        """Predict probabilities for each class."""
+        check_is_fitted(self, "beta")  # Ensure the model is fitted
+        X = check_array(X)
+        n_samples = len(X)
+
+        h = X.copy()
+        cluster_labels = KMeans(n_clusters=self.k, n_init=10).fit_predict(X)
+
+        for i in range(self.n_layer):
+            # List to store h for each cluster
+            h_list = []
+
+            for j in range(self.k):
+                cluster_data = h[cluster_labels == j]
+                n_cluster_sample = len(cluster_data)
+                h_cluster = self._activation_function(
+                    np.dot(cluster_data, self.random_weights[i])
+                    + np.dot(np.ones((n_cluster_sample, 1)), self.random_bias[i])
+                )
+                h_list.append(h_cluster)
+
+            # Concatenate all h to get a unique h matrix
+            final_h = np.concatenate(h_list, axis=0)
+            h = final_h
+            d = np.concatenate([h, X], axis=1)
+
+        d = np.concatenate([d, np.ones_like(d[:, 0:1])], axis=1)
+        output = d @ self.beta
+
+        if self.task_type == "classification":
+            return self._softmax(output)
+        else:
+            raise ValueError(
+                "Probability predictions are not available for regression tasks."
+            )
 
     def score(self, X, y):
         """Calculate the score of the model."""
