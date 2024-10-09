@@ -35,6 +35,7 @@ class DeepRVFLK(BaseEstimator, ClassifierMixin):
         self.data_mean = [None] * self.n_layer
         self.w_random_range = [-1, 1]
         self.b_random_range = [0, 1]
+        self.classes_ = None
 
     def _activation_function(self, x):
         if self.activation == "relu":
@@ -103,7 +104,9 @@ class DeepRVFLK(BaseEstimator, ClassifierMixin):
         d = np.concatenate([d, np.ones_like(d[:, 0:1])], axis=1)
 
         if self.task_type == "classification":
-            y_one_hot = self._one_hot(y, len(np.unique(y)))
+            self.classes_ = np.unique(y)
+            n_classes = len(self.classes_)
+            y_one_hot = self._one_hot(y, n_classes)
             self.beta = (
                 np.linalg.inv((self.lam * np.identity(d.shape[1]) + np.dot(d.T, d)))
                 @ d.T

@@ -1,6 +1,6 @@
 from sklearn.model_selection import GridSearchCV
 from sklearn.datasets import load_iris
-from pyrvfl.models.Deep_RVFL import DeepRVFL
+from pyrvfl.models.DeepRVFL import DeepRVFL
 from sklearn.model_selection import cross_val_score
 from sklearn.pipeline import Pipeline
 
