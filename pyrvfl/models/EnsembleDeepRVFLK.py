@@ -17,7 +17,6 @@ class EnsembleDeepRVFLK(BaseEstimator, ClassifierMixin):
         lam=1e-6,
         activation="relu",
         n_layer=2,
-        same_feature=False,
         task_type="classification",
     ):
         assert task_type in [
